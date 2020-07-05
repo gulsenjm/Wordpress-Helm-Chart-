@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "wordpress.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wordpress.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.mysql.deployment.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "wordpress.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wordpress.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: wordpress
+        image: {{ .Values.wordpress.deployment.image }}
+        ports:
+          - name: http
+            containerPort: 80
+        env:
+        - name: WORDPRESS_DB_HOST
+          value: {{ template "mysql.fullname" . }}
+        - name: WORDPRESS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "mysql.secrets" . }}
+              key: db-password
+
+---
+# mysql-deployment
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "mysql.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "mysql.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ template "mysql.fullname" . }}
+  replicas: {{ .Values.mysql.deployment.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mysql.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mysql.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: {{ template "mysql.name" . }}
+        image: {{ .Values.mysql.deployment.image }}
+        ports:
+        - name: mysql
+          containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "mysql.secrets" . }}
+              key: db-password 
+        volumeMounts:
+        - name: db-data
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: db-data
+        persistentVolumeClaim:
+          claimName: {{ template "mysql.pvc" . }}
